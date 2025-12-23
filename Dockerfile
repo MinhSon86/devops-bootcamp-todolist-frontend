@@ -1,32 +1,24 @@
-# Multi-stage build for production
-FROM node:20-alpine AS deps
+# ---------- Build stage ----------
+FROM node:18-alpine AS builder
+
 WORKDIR /app
+
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Set environment variable for build
-ENV NEXT_PUBLIC_API_URL=http://localhost:5000/api
-
 RUN npm run build
 
-FROM node:20-alpine AS runner
+# ---------- Runtime stage ----------
+FROM node:18-alpine
+
 WORKDIR /app
 
-ENV NODE_ENV=production
-
-# Copy necessary files
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app ./
 
 EXPOSE 3000
+CMD ["npm", "start"]
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-CMD ["node", "server.js"]
